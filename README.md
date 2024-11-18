@@ -1,4 +1,4 @@
-# 🎈 Blank app template
+# How to use this deployment
 
 A simple Streamlit app template for you to modify!
 
