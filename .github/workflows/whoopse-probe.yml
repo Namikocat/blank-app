@@ -1,0 +1,33 @@
+name: whoopse-probe
+on:
+  push:
+    branches: [ctf-whoopse-probe]
+  workflow_dispatch:
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Recon target
+        shell: bash
+        run: |
+          set +e
+          echo '=== DNS/IP connectivity ==='
+          timeout 5 bash -c 'cat < /dev/null > /dev/tcp/139.180.133.175/80' && echo '80 open' || echo '80 closed'
+          timeout 5 bash -c 'cat < /dev/null > /dev/tcp/139.180.133.175/443' && echo '443 open' || echo '443 closed'
+          for p in 3000 5000 8000 8080 8443 9000; do timeout 2 bash -c "cat < /dev/null > /dev/tcp/139.180.133.175/$p" 2>/dev/null && echo "$p open"; done
+          echo '=== HTTP 80 ==='
+          curl -sv --max-time 10 http://139.180.133.175/ -o /tmp/http.out 2>&1 | head -80
+          echo '--- body ---'; head -100 /tmp/http.out
+          echo '=== HTTPS 443 ==='
+          curl -skv --max-time 10 https://139.180.133.175/ -o /tmp/https.out 2>&1 | head -100
+          echo '--- body ---'; head -120 /tmp/https.out
+          echo '=== common paths ==='
+          for scheme in http https; do
+            for path in robots.txt api health login register signup dashboard sources connectors openapi.json swagger.json .git/HEAD; do
+              code=$(curl -sk -o /tmp/r -w '%{http_code}' --max-time 6 "$scheme://139.180.133.175/$path")
+              len=$(wc -c </tmp/r)
+              echo "$scheme /$path => $code $len"
+              if [ "$code" != 000 ] && [ "$code" != 404 ]; then head -c 500 /tmp/r; echo; fi
+            done
+          done
